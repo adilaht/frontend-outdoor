@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  /* Bersih putih */
+  --foreground: #0a0a0a;
+  /* Hitam pekat */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ffffff;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  /* ─── TEMA MODERN TECH OUTDOOR ─── */
+  --color-brand-dark: #0a0a0a;
+  /* Hitam pekat murni */
+  --color-brand-forest: #141416;
+  /* Abu-abu gelap pekat untuk card/navbar */
+  --color-brand-accent: #f95738;
+  /* Electric Safety Orange */
+  --color-brand-mist: #f8f9fa;
+  /* Putih abu-abu tipis untuk background */
+
+  /* Animasi tetap sama */
+  --animate-fadeInUp: fadeInUp 1s ease-out forwards;
+  --animate-zoom: zoom 6s ease-in-out infinite;
+
+  @keyframes fadeInUp {
+    0% {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes zoom {
+
+    0%,
+    100% {
+      transform: scale(1);
+    }
+
+    50% {
+      transform: scale(1.03);
+    }
+  }
+}
+
+body::before,
+body::after,
+::backdrop {
+  pointer-events: none !important;
+}
