@@ -35,7 +35,7 @@ export default function AdminLoginPage() {
 
     setIsLoading(true);
     setError('');
-    
+
     try {
       const response = await apiInstance.post('/api/admin/login', { email, password });
       if (response.data.token) {
@@ -52,7 +52,7 @@ export default function AdminLoginPage() {
   return (
     <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        
+
         <div className="text-center mb-8">
           <h1 className="text-2xl font-black text-zinc-900 tracking-tighter uppercase">
             TWENTYONE<span className="text-brand-accent">.</span>
@@ -80,7 +80,7 @@ export default function AdminLoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="block w-full pl-11 pr-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-brand-accent/20 focus:border-brand-accent outline-none transition text-sm"
-                  placeholder="admin@twentyone.com"
+                  placeholder="emailkamu@gmail.com"
                 />
               </div>
             </div>

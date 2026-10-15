@@ -23,7 +23,7 @@ export function ProductCard({
   onCartUpdated 
 }: ProductCardProps) {
   const router = useRouter(); 
-  const { refreshGlobalDate } = useCartGlobal();
+  const { refreshGlobalDate, cartItems } = useCartGlobal();
   const [jumlah, setJumlah] = React.useState<number>(1);
   const [isAdding, setIsAdding] = React.useState<boolean>(false);
   const [isSuccess, setIsSuccess] = React.useState<boolean>(false);
@@ -35,12 +35,22 @@ export function ProductCard({
   const currentMaxStock = (isDateSelected && product.stok_tersedia !== undefined) 
     ? product.stok_tersedia 
     : product.stok_total;
+    
+  // 🌟 NEW: Calculate how many of this product are already in the cart
+  const cartItem = cartItems?.find((item: any) => item.id_product === product.id_product);
+  const qtyInCart = cartItem ? cartItem.jumlah : 0;
+  
+  // Available to add equals max stock minus what's already in the cart
+  const availableToAdd = Math.max(0, currentMaxStock - qtyInCart);
+  
+  // Disables the entire card action if they can't add any more
+  const isFullyStockedInCart = availableToAdd <= 0;
   
   const productCover = getCoverImage(product.images);
 
   const increment = (e: React.MouseEvent) => {
     e.stopPropagation(); // Biar ga ke-trigger klik navigasi card
-    if (jumlah < currentMaxStock) setJumlah(prev => prev + 1);
+    if (jumlah < availableToAdd) setJumlah(prev => prev + 1);
   };
 
   const decrement = (e: React.MouseEvent) => {
@@ -50,6 +60,8 @@ export function ProductCard({
 
   const handleAddToCart = async (e: React.MouseEvent) => {
     e.stopPropagation(); // Menahan agar navigasi router.push halaman detail tidak jalan
+    if (isFullyStockedInCart) return; // Guard
+    
     setIsAdding(true);
     const success = await addToCart(product.id_product, jumlah);
     
@@ -58,6 +70,9 @@ export function ProductCard({
       if (onCartUpdated) onCartUpdated();
       await refreshGlobalDate(); // 🌟 LANGSUNG REFRESH CART CONTEXT SETELAH NAMBAH BARANG
       
+      // Reset jumlah back to 1 for the next add action, or max available
+      setJumlah(1);
+
       setTimeout(() => {
         setIsSuccess(false);
         setJumlah(1); 
@@ -152,7 +167,7 @@ export function ProductCard({
           <div className="pt-2 space-y-2">
             
             {/* Selector Jumlah Unit */}
-            {!isOutOfStock && (
+            {!isOutOfStock && !isFullyStockedInCart && (
               <div className="flex items-center justify-between border border-zinc-200 bg-zinc-50 rounded-xl h-10 px-3">
                 <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Jumlah:</span>
                 <div className="flex items-center gap-2">
@@ -168,7 +183,7 @@ export function ProductCard({
                   <button 
                     type="button"
                     onClick={increment} 
-                    disabled={jumlah >= product.stok_total || isSuccess} 
+                    disabled={jumlah >= availableToAdd || isSuccess} 
                     className="p-1 text-zinc-400 hover:text-brand-dark disabled:opacity-30 cursor-pointer transition"
                   >
                     <Plus className="w-3.5 h-3.5" />
@@ -181,6 +196,10 @@ export function ProductCard({
             {isOutOfStock ? (
               <button disabled className="w-full bg-red-50 text-red-500 text-xs font-black py-3 rounded-xl uppercase tracking-wider cursor-not-allowed border border-red-100 opacity-80">
                 Stok Habis
+              </button>
+            ) : isFullyStockedInCart ? (
+              <button disabled className="w-full bg-zinc-100 text-zinc-400 text-[10px] font-black py-3 rounded-xl uppercase tracking-wider cursor-not-allowed border border-zinc-200 flex items-center justify-center gap-1.5 opacity-90">
+                <Check className="w-3.5 h-3.5" /> Maksimal Di Keranjang
               </button>
             ) : (
               <button

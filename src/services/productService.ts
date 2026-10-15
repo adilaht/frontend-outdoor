@@ -51,9 +51,18 @@ export async function getHighlightedProducts(): Promise<Product[]> {
 }
 
 // Tambahkan ke src/services/productService.ts
-export async function getProductById(id: string): Promise<Product | null> {
+export async function getProductById(
+  id: string,
+  tanggalMulai?: string | null,
+  tanggalSelesai?: string | null
+): Promise<Product | null> {
   try {
-    const response = await apiInstance.get(`/api/products/${id}`);
+    const params: Record<string, any> = {};
+    if (tanggalMulai && tanggalSelesai) {
+      params.tanggal_mulai = tanggalMulai;
+      params.tanggal_selesai = tanggalSelesai;
+    }
+    const response = await apiInstance.get(`/api/products/${id}`, { params });
     return response.data; // Sesuaikan jika response backend lu pakai .data.data
   } catch (error) {
     console.error("Gagal mengambil detail produk:", error);

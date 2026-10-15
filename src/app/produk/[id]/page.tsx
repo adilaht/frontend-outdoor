@@ -25,7 +25,7 @@ export default function ProductDetailPage() {
   const [jumlah, setJumlah] = React.useState(1);
 
   // 🌟 AMBIL DARI CONTEXT GLOBAL: Satukan state memory management
-  const { isDateSelected, dateRange, setDateRange, isLoadingCartGlobal } = useCartGlobal();
+  const { isDateSelected, dateRange, setDateRange, isLoadingCartGlobal, cartItems } = useCartGlobal();
 
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -42,12 +42,14 @@ export default function ProductDetailPage() {
   // Load data produk
   React.useEffect(() => {
     if (params.id) {
-      getProductById(params.id as string).then((data) => {
+      const fromStr = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : null;
+      const toStr = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : null;
+      getProductById(params.id as string, fromStr, toStr).then((data) => {
         setProduct(data);
         setIsLoading(false);
       });
     }
-  }, [params.id]);
+  }, [params.id, dateRange?.from, dateRange?.to]);
 
   // 🌟 BARU: Handler perubahan kalender internal detail produk untuk ditembak ke server global
   const handleDateChange = async (range: DateRange | undefined) => {
@@ -93,6 +95,25 @@ export default function ProductDetailPage() {
       setIsSubmitting(false);
     }
   };
+
+  // 🌟 LOGIKA BATASAN STOK + KERANJANG
+  const currentMaxStock = (isDateSelected && product?.stok_tersedia !== undefined) 
+    ? product.stok_tersedia 
+    : product?.stok_total || 0;
+    
+  const cartItem = product ? cartItems?.find((item: any) => item.id_product === product.id_product) : null;
+  const qtyInCart = cartItem ? cartItem.jumlah : 0;
+  const availableToAdd = Math.max(0, currentMaxStock - qtyInCart);
+  const isFullyStockedInCart = availableToAdd <= 0;
+  
+  // Jika max stok berubah/berkurang dan jumlah form melebihi stok yang ada
+  React.useEffect(() => {
+    if (jumlah > availableToAdd && availableToAdd > 0) {
+      setJumlah(availableToAdd);
+    } else if (availableToAdd === 0 && jumlah !== 1) {
+      setJumlah(1); // Set to 1 visually, though it will be disabled
+    }
+  }, [jumlah, availableToAdd]);
 
   // Loading state blocker bawaan Context
   if (isLoadingCartGlobal || isLoading) {
@@ -152,7 +173,7 @@ export default function ProductDetailPage() {
                 </div>
                 <div className="text-right">
                   <span className="text-[10px] bg-emerald-50 text-emerald-600 border border-emerald-100 px-3 py-1 rounded-full font-black uppercase tracking-tighter">
-                    {product.stok_total} Unit Ready
+                    {currentMaxStock} Unit Ready
                   </span>
                 </div>
               </div>
@@ -182,12 +203,12 @@ export default function ProductDetailPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <label className="text-[10px] font-black uppercase text-zinc-400 tracking-widest block">Jumlah Unit</label>
-                  <p className="text-[10px] text-zinc-300 italic">Maksimal {product.stok_total} unit</p>
+                  <p className="text-[10px] text-zinc-300 italic">Maksimal {availableToAdd} unit (Sisa limit)</p>
                 </div>
                 <div className="flex items-center gap-4 bg-zinc-50 border border-zinc-200 rounded-xl p-1.5">
-                  <button onClick={() => setJumlah(Math.max(1, jumlah - 1))} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white transition cursor-pointer"><Minus className="w-4 h-4" /></button>
-                  <span className="font-black font-mono w-6 text-center">{jumlah}</span>
-                  <button onClick={() => setJumlah(Math.min(product.stok_total, jumlah + 1))} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white transition cursor-pointer"><Plus className="w-4 h-4" /></button>
+                  <button type="button" onClick={() => setJumlah(Math.max(1, jumlah - 1))} disabled={jumlah <= 1 || isFullyStockedInCart} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer"><Minus className="w-4 h-4" /></button>
+                  <span className="font-black font-mono w-6 text-center">{isFullyStockedInCart ? 0 : jumlah}</span>
+                  <button type="button" onClick={() => setJumlah(Math.min(availableToAdd, jumlah + 1))} disabled={jumlah >= availableToAdd || isFullyStockedInCart} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer"><Plus className="w-4 h-4" /></button>
                 </div>
               </div>
 
@@ -200,14 +221,16 @@ export default function ProductDetailPage() {
               {/* Tombol Chaining Action Dinamis Berdasarkan IsDateSelected */}
               <button
                 onClick={handleAction}
-                disabled={isSubmitting || isSuccess || (isDateSelected && product.stok_total === 0)}
+                disabled={isSubmitting || isSuccess || (isDateSelected && currentMaxStock === 0) || isFullyStockedInCart}
                 className={`w-full py-4 rounded-xl font-black text-xs tracking-widest uppercase transition-all duration-300 flex items-center justify-center gap-3 cursor-pointer shadow-lg active:scale-95 ${isSuccess
                     ? "bg-emerald-600 text-white shadow-emerald-600/20"
                     : !isDateSelected
-                      ? "bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/20" // 🌟 Warna warning jika tanggal belum dipilih
-                      : product.stok_total === 0
+                      ? "bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/20" 
+                      : currentMaxStock === 0
                         ? "bg-red-50 text-red-500 shadow-none border border-red-100 cursor-not-allowed opacity-80"
-                        : "bg-brand-dark hover:bg-brand-accent text-white shadow-brand-dark/20"
+                        : isFullyStockedInCart
+                          ? "bg-zinc-100 text-zinc-400 shadow-none border border-zinc-200 cursor-not-allowed opacity-90"
+                          : "bg-brand-dark hover:bg-brand-accent text-white shadow-brand-dark/20"
                   }`}
               >
                 {isSubmitting ? (
@@ -216,8 +239,10 @@ export default function ProductDetailPage() {
                   <> <Check className="w-4 h-4" /> BERHASIL DI TAMBAHKAN </>
                 ) : !isDateSelected ? (
                   <> <AlertTriangle className="w-4 h-4" /> TENTUKAN TANGGAL SEWA </ >
-                ) : product.stok_total === 0 ? (
+                ) : currentMaxStock === 0 ? (
                   <> STOK HABIS </>
+                ) : isFullyStockedInCart ? (
+                  <> <Check className="w-4 h-4" /> MAKSIMAL DI KERANJANG </>
                 ) : (
                   <> <ShoppingCart className="w-4 h-4" /> AMBIL ALAT SEKARANG </>
                 )}

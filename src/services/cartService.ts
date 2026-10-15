@@ -125,8 +125,8 @@ export async function addToCart(id_product: number, jumlah: number): Promise<boo
     });
     
     return response.status === 200 || response.status === 201;
-  } catch (error) {
-    console.error("Gagal menambahkan item ke keranjang:", error);
+  } catch (error: any) {
+    console.error("Gagal menambahkan item ke keranjang:", error?.response?.data?.error || error.message);
     return false;
   }
 }

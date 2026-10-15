@@ -72,6 +72,7 @@ export interface CartItem {
   id_product: number;
   jumlah: number;
   is_available: boolean;
+  stok_tersedia?: number; // Sisa stok real-time dari backend
   product: Product; // Relasi ke kontrak Product di atas
 }
 

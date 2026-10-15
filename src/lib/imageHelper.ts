@@ -8,9 +8,21 @@
  * Menangani baik string langsung maupun objek { url: string }.
  */
 export function extractImageUrl(img: unknown): string {
-  if (typeof img === 'string') return img;
-  if (img && typeof img === 'object' && 'url' in img) return (img as { url: string }).url;
-  return '';
+  let url = '';
+  if (typeof img === 'string') url = img;
+  else if (img && typeof img === 'object' && 'url' in img) url = (img as { url: string }).url;
+  
+  if (!url) return '';
+  
+  // Jika URL berupa path relatif dari backend (seperti yang dikirim cartModel tanpa buildImageUrl)
+  if (url.startsWith('/uploads')) {
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+    // Hapus trailing slash dari baseUrl kalau ada, untuk mencegah double slash
+    const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+    return `${cleanBaseUrl}${url}`;
+  }
+  
+  return url;
 }
 
 /**

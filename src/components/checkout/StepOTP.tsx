@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { verifyOTP, resendOTP } from '@/src/services/otpServices';
 import { Mail, ShieldCheck, Timer, RefreshCw, AlertCircle } from 'lucide-react';
+import ConfirmModal from '@/src/components/common/ConfirmModal';
 
 interface Step2Props {
   email: string;
@@ -18,6 +19,13 @@ export default function StepOTP({ email, bookingId, onSuccess, onBack }: Step2Pr
   const [isResending, setIsResending] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState('');
   const [successMessage, setSuccessMessage] = React.useState('');
+
+  // 🛡️ State untuk ConfirmModal (Race Condition / Conflict Error)
+  const [conflictModal, setConflictModal] = React.useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+  }>({ isOpen: false, title: '', message: '' });
   
   const inputRefs = React.useRef<HTMLInputElement[]>([]);
 
@@ -94,7 +102,25 @@ export default function StepOTP({ email, bookingId, onSuccess, onBack }: Step2Pr
         throw new Error("Gagal mendapatkan token pembayaran dari server.");
       }
     } catch (err: any) {
-      setErrorMessage(err.message || "Kode OTP salah atau sudah expired!");
+      // Ambil pesan error dari objek respons backend ({ error: "..." })
+      const rawMessage = err?.error || err?.message || "Kode OTP salah atau sudah expired!";
+
+      // 🛡️ Cek apakah error ini dari race condition (409 Conflict)
+      const isConflict = rawMessage.includes("stok produk") || rawMessage.includes("OTP sudah digunakan");
+
+      if (isConflict) {
+        // Tampilkan modal peringatan yang jelas untuk race condition
+        const isStockError = rawMessage.includes("stok produk");
+        setConflictModal({
+          isOpen: true,
+          title: isStockError ? "Stok Habis Diambil Orang Lain!" : "Permintaan Duplikat Terdeteksi",
+          message: isStockError
+            ? rawMessage + " Silakan kembali ke keranjang dan periksa ketersediaan barang lainnya."
+            : "OTP ini sudah diproses. Jika pembayaran sudah muncul, silakan lanjutkan. Jika belum, coba ulangi dari awal.",
+        });
+      } else {
+        setErrorMessage(rawMessage);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -115,14 +141,15 @@ export default function StepOTP({ email, bookingId, onSuccess, onBack }: Step2Pr
       setOtp(new Array(6).fill("")); // Kosongkan kotak
       inputRefs.current[0].focus();
     } catch (err: any) {
-      setErrorMessage(err.message || "Gagal mengirim ulang OTP.");
+      setErrorMessage(err?.error || err?.message || "Gagal mengirim ulang OTP.");
     } finally {
       setIsResending(false);
     }
   };
 
   return (
-    // ✨ FIX BACKGROUND: Bersih tanpa pembungkus gelap bawaan, dengan shadow 2xl
+    <>
+    {/* ✨ FIX BACKGROUND: Bersih tanpa pembungkus gelap bawaan, dengan shadow 2xl */}
     <div className="bg-white border border-zinc-200/60 rounded-[2rem] shadow-2xl shadow-zinc-200/50 overflow-hidden max-w-md mx-auto">
       
       {/* Header Info */}
@@ -231,5 +258,21 @@ export default function StepOTP({ email, bookingId, onSuccess, onBack }: Step2Pr
         </form>
       </div>
     </div>
+
+    {/* 🛡️ Modal Peringatan Race Condition */}
+    <ConfirmModal
+      isOpen={conflictModal.isOpen}
+      title={conflictModal.title}
+      message={conflictModal.message}
+      type="warning"
+      confirmText="Kembali ke Keranjang"
+      hideCancel={true}
+      onConfirm={() => {
+        setConflictModal({ isOpen: false, title: '', message: '' });
+        onBack();
+      }}
+      onCancel={() => setConflictModal({ isOpen: false, title: '', message: '' })}
+    />
+    </>
   );
-}
+}

@@ -14,6 +14,7 @@ interface CartContextType {
   isLoadingCartGlobal: boolean;
   refreshGlobalDate: () => Promise<void>;
   cartItemCount: number;
+  cartItems: any[];
 }
 
 const CartContext = React.createContext<CartContextType | undefined>(undefined);
@@ -22,6 +23,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>(undefined);
   const [isLoadingCartGlobal, setIsLoadingCartGlobal] = React.useState(true);
   const [cartItemCount, setCartItemCount] = React.useState(0);
+  const [cartItems, setCartItems] = React.useState<any[]>([]);
 
   // Fungsi untuk menarik tanggal aktif dari server (API getCart)
   const refreshGlobalDate = React.useCallback(async () => {
@@ -35,8 +37,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         if (cart.items) {
           const count = cart.items.reduce((total: number, item: any) => total + item.jumlah, 0);
           setCartItemCount(count);
+          setCartItems(cart.items);
         } else {
           setCartItemCount(0);
+          setCartItems([]);
         }
 
         if (cart.tanggal_mulai && cart.tanggal_selesai) {
@@ -67,7 +71,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const isDateSelected = !!(dateRange?.from && dateRange?.to);
 
   return (
-    <CartContext.Provider value={{ dateRange, setDateRange, isDateSelected, isLoadingCartGlobal, refreshGlobalDate, cartItemCount }}>
+    <CartContext.Provider value={{ dateRange, setDateRange, isDateSelected, isLoadingCartGlobal, refreshGlobalDate, cartItemCount, cartItems }}>
       {children}
     </CartContext.Provider>
   );

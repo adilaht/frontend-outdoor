@@ -3,7 +3,7 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { Trash2, ArrowLeft, ShieldAlert, Calendar as CalendarIcon, ShoppingBag, Plus, Minus, Loader2 } from 'lucide-react';
+import { Trash2, ArrowLeft, ShieldAlert, Calendar as CalendarIcon, ShoppingBag, Plus, Minus, Loader2, AlertTriangle } from 'lucide-react';
 import { getCartItems, removeFromCart, updateCartDate, type CartSummary } from '@/src/services/cartService';
 import { updateItemQuantity, getCart } from '@/src/services/cartService';
 import { Popover, PopoverContent, PopoverTrigger } from '@/src/components/ui/Popover';
@@ -96,8 +96,21 @@ export default function CartPage() {
   };
 
   // Handler untuk update kuantitas (Tambah / Kurang) dengan validasi stok dari backend
-  const handleQuantityUpdate = async (id_item: number, currentQty: number, delta: number) => {
+  const handleQuantityUpdate = async (id_item: number, currentQty: number, delta: number, maxStock: number = 999) => {
     const newQty = currentQty + delta;
+    
+    // Validasi Frontend: Cek limit maksimal
+    if (newQty > maxStock) {
+      setConfirmModal({ 
+        isOpen: true, 
+        title: 'Batas Maksimal', 
+        message: `Anda sudah mencapai limit maksimal stok untuk alat ini (${maxStock} unit).`, 
+        type: 'warning', 
+        hideCancel: true, 
+        action: () => { } 
+      });
+      return;
+    }
 
     if (newQty <= 0) {
       handleDelete(id_item);
@@ -183,8 +196,23 @@ export default function CartPage() {
             <p className="text-sm text-zinc-400 max-w-sm mx-auto mb-6">Anda belum menentukan alat tempur untuk petualangan gunung Anda selanjutnya.</p>
             <button onClick={() => router.push('/produk')} className="bg-brand-dark hover:bg-brand-accent text-white font-black px-6 py-3 rounded-xl transition text-xs tracking-widest uppercase cursor-pointer">Cari Alat Gunung</button>
           </div>
-        ) : (
+        ) : (() => {
+          // 🛡️ Cek apakah ada item yang stoknya sudah tidak tersedia
+          const hasUnavailableItems = cartData.items.some(item => item.is_available === false);
+
+          return (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+
+            {/* 🛡️ Banner Peringatan Global jika ada item tidak tersedia */}
+            {hasUnavailableItems && (
+              <div className="lg:col-span-3 flex items-start gap-3 bg-orange-50 border border-orange-200 text-orange-800 p-4 rounded-2xl">
+                <AlertTriangle className="w-5 h-5 flex-shrink-0 text-orange-500 mt-0.5" />
+                <div>
+                  <p className="font-bold text-sm">Beberapa alat tidak tersedia untuk periode ini</p>
+                  <p className="text-xs text-orange-600 mt-1">Stok telah dipesan oleh pelanggan lain. Hapus item yang bertanda peringatan atau ubah periode sewa Anda untuk melanjutkan.</p>
+                </div>
+              </div>
+            )}
 
             {/* Sisi Kiri: Daftar Alat */}
             <div className="lg:col-span-2 flex flex-col gap-4">
@@ -193,9 +221,20 @@ export default function CartPage() {
 
                 const isItemUpdating = updatingItemId === item.id_item;
                 const subtotalItem = item.product.harga_per_hari * cartData.durasiHari * item.jumlah;
+                const itemUnavailable = item.is_available === false;
+                // Gunakan stok_tersedia dari backend (real-time) jika ada, fallback ke stok_total
+                const maxStock = item.stok_tersedia !== undefined ? item.stok_tersedia : item.product.stok_total;
 
                 return (
-                  <div key={item.id_item} className={`bg-white border border-zinc-200 p-5 rounded-2xl flex flex-col sm:flex-row gap-5 items-start sm:items-center justify-between hover:shadow-md transition-all relative ${isItemUpdating ? 'opacity-60 pointer-events-none' : ''}`}>
+                  <div key={item.id_item} className={`bg-white border p-5 rounded-2xl flex flex-col gap-3 sm:flex-row sm:gap-5 items-start sm:items-center justify-between hover:shadow-md transition-all relative ${isItemUpdating ? 'opacity-60 pointer-events-none' : ''} ${itemUnavailable ? 'border-orange-300 bg-orange-50/30' : 'border-zinc-200'}`}>
+
+                    {/* 🛡️ Banner peringatan per item jika tidak tersedia */}
+                    {itemUnavailable && (
+                      <div className="w-full flex items-center gap-2 bg-orange-100 border border-orange-200 text-orange-700 text-xs p-3 rounded-xl sm:absolute sm:top-3 sm:left-3 sm:right-3 sm:w-auto sm:z-10">
+                        <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                        <span className="font-bold">Stok habis untuk periode ini{item.stok_tersedia !== undefined ? ` (Tersisa: ${item.stok_tersedia} unit)` : ''}</span>
+                      </div>
+                    )}
 
                     {/* Detail Produk & Image */}
                     <div className="flex gap-4 items-center w-full sm:w-auto min-w-0">
@@ -223,7 +262,8 @@ export default function CartPage() {
                         <button
                           type="button"
                           onClick={() => handleQuantityUpdate(item.id_item, item.jumlah, -1)}
-                          className="p-1.5 rounded-lg text-zinc-500 hover:text-brand-dark hover:bg-zinc-200 transition cursor-pointer"
+                          disabled={isItemUpdating}
+                          className="p-1.5 rounded-lg text-zinc-500 hover:text-brand-dark hover:bg-zinc-200 disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer"
                         >
                           <Minus className="w-3.5 h-3.5" />
                         </button>
@@ -234,9 +274,9 @@ export default function CartPage() {
 
                         <button
                           type="button"
-                          onClick={() => handleQuantityUpdate(item.id_item, item.jumlah, 1)}
-                          disabled={isItemUpdating || (item.product.stok_total !== undefined && item.jumlah >= item.product.stok_total)}
-                          className="p-1.5 rounded-lg text-zinc-500 hover:text-brand-dark hover:bg-zinc-200 transition cursor-pointer"
+                          onClick={() => handleQuantityUpdate(item.id_item, item.jumlah, 1, maxStock)}
+                          disabled={isItemUpdating}
+                          className="p-1.5 rounded-lg text-zinc-500 hover:text-brand-dark hover:bg-zinc-200 disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer"
                         >
                           <Plus className="w-3.5 h-3.5" />
                         </button>
@@ -320,13 +360,34 @@ export default function CartPage() {
                 <span>Mekanisme Guest Checkout aktif. Data pesanan diikat sementara pada penanda session ID browser Anda.</span>
               </div>
 
-              <button onClick={() => router.push('/checkout')} className="w-full bg-brand-accent hover:bg-red-600 text-white font-black py-4 rounded-xl transition-all duration-200 text-xs tracking-widest uppercase cursor-pointer shadow-lg shadow-brand-accent/20 active:scale-95">
-                LANJUT ISI DATA DIRI
+              <button
+                onClick={() => {
+                  if (hasUnavailableItems) {
+                    setConfirmModal({
+                      isOpen: true,
+                      title: 'Tidak Bisa Checkout',
+                      message: 'Terdapat alat yang stoknya sudah tidak tersedia untuk periode sewa Anda. Hapus item yang bermasalah atau ubah tanggal sewa terlebih dahulu.',
+                      type: 'warning',
+                      hideCancel: true,
+                      action: () => { }
+                    });
+                    return;
+                  }
+                  router.push('/checkout');
+                }}
+                className={`w-full font-black py-4 rounded-xl transition-all duration-200 text-xs tracking-widest uppercase cursor-pointer shadow-lg active:scale-95 ${
+                  hasUnavailableItems
+                    ? 'bg-zinc-300 text-zinc-500 cursor-not-allowed shadow-none'
+                    : 'bg-brand-accent hover:bg-red-600 text-white shadow-brand-accent/20'
+                }`}
+              >
+                {hasUnavailableItems ? 'ADA ITEM TIDAK TERSEDIA' : 'LANJUT ISI DATA DIRI'}
               </button>
             </div>
 
           </div>
-        )}
+          );
+        })()}
       </div>
 
       <ConfirmModal
