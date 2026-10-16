@@ -172,7 +172,7 @@ export default function ProductDetailPage() {
                   <p className="text-3xl font-black text-brand-dark font-mono">Rp {product.harga_per_hari.toLocaleString('id-ID')}<span className="text-sm font-normal text-zinc-400">/hari</span></p>
                 </div>
                 <div className="text-right">
-                  <span className="text-[10px] bg-emerald-50 text-emerald-600 border border-emerald-100 px-3 py-1 rounded-full font-black uppercase tracking-tighter">
+                  <span className={`text-[10px] ${currentMaxStock === 0 ? 'bg-red-50 text-red-600 border-red-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'} border px-3 py-1 rounded-full font-black uppercase tracking-tighter`}>
                     {currentMaxStock} Unit Ready
                   </span>
                 </div>

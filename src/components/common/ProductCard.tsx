@@ -136,9 +136,9 @@ export function ProductCard({
         </div>
         
         {/* Baris Meta Internal Unit */}
-        {!isOutOfStock && !isSimpleDisplay && (
-          <div className="flex items-center gap-1.5 text-[11px] text-zinc-400 font-medium">
-            <Layers className="w-3.5 h-3.5 text-zinc-300" /> Kapasitas: {currentMaxStock} Unit Ready
+        {!isSimpleDisplay && (
+          <div className={`flex items-center gap-1.5 text-[11px] font-medium ${isOutOfStock ? 'text-red-500' : 'text-zinc-400'}`}>
+            <Layers className={`w-3.5 h-3.5 ${isOutOfStock ? 'text-red-400' : 'text-zinc-300'}`} /> Kapasitas: {currentMaxStock} Unit Ready
           </div>
         )}
 
