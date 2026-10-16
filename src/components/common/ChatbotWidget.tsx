@@ -150,6 +150,53 @@ export default function ChatbotWidget() {
     }
   };
 
+  const renderFormattedText = (text: string) => {
+    let cleanText = text;
+
+    // 1. Bongkar format tabel Markdown (| Langkah | Rincian |) jika AI n8n menghasilkan tabel
+    if (cleanText.includes('|')) {
+      // Pisahkan baris tabel yang dempetan '| |'
+      cleanText = cleanText.replace(/\|\s*\|/g, '|\n|');
+      // Hapus header tabel dan garis pemisah seperti | Langkah | Rincian | dan |---|---|
+      cleanText = cleanText.replace(/\|[^|\n]+\|[^|\n]+\|\s*\|[\s\-:|]+\|/gi, '\n\n');
+      // Konversi baris tabel '| Kolom 1 | Kolom 2 |' menjadi baris vertikal
+      cleanText = cleanText.replace(/\|\s*([^|\n]+?)\s*\|\s*([^|\n]+?)\s*\|/g, (match, col1, col2) => {
+        return `\n\n${col1.trim()}\n${col2.trim()}`;
+      });
+      // Bersihkan sisa karakter pipa '|'
+      cleanText = cleanText.replace(/\|\s*/g, ' ');
+    }
+
+    // 2. Bersihkan dan konversi tag HTML umum dari n8n menjadi format teks rapi
+    cleanText = cleanText
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/?(ul|ol)>/gi, '\n')
+      .replace(/<li[^>]*>/gi, '• ')
+      .replace(/<\/li>/gi, '\n')
+      .replace(/<\/?p>/gi, '\n')
+      .replace(/<\/?(strong|b)>/gi, '**')
+      .replace(/<[^>]+>/g, '') // Hapus tag sisa jika ada
+      .trim();
+
+    // 3. Otomatis beri baris baru jika nomor list (1., 2., dst) nempel langsung tanpa enter
+    cleanText = cleanText.replace(/([^\n])\s+(\d+\.\s+(?:\*\*|[A-Z]))/g, '$1\n\n$2');
+
+    // 4. Otomatis beri baris baru jika bullet list (- atau •) nempel tanpa enter
+    cleanText = cleanText.replace(/([^\n])\s+([•\-\*]\s+(?:\*\*|[A-Z]))/g, '$1\n$2');
+
+    // 5. Batasi maksimal 2 newline berturut-turut
+    cleanText = cleanText.replace(/\n{3,}/g, '\n\n');
+
+    // 6. Render teks dengan dukungan **bold**
+    const parts = cleanText.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, index) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={index} className="font-bold text-zinc-900">{part.slice(2, -2)}</strong>;
+      }
+      return part;
+    });
+  };
+
   const formatTime = (ts: number) => {
     return new Date(ts).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
   };
@@ -210,12 +257,12 @@ export default function ChatbotWidget() {
 
               <div className={`max-w-[80%] flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
                 <div
-                  className={`px-4 py-3 text-sm leading-relaxed ${msg.sender === 'user'
+                  className={`px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap break-words ${msg.sender === 'user'
                     ? 'bg-brand-dark text-white rounded-2xl rounded-tr-sm shadow-md'
                     : 'bg-white text-zinc-800 rounded-2xl rounded-tl-sm shadow-sm border border-zinc-200'
                     }`}
                 >
-                  {msg.text}
+                  {renderFormattedText(msg.text)}
                 </div>
                 <span className="text-[10px] text-zinc-400 font-medium mt-1 px-1">
                   {formatTime(msg.timestamp)}
