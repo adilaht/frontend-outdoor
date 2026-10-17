@@ -4,6 +4,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { MessageSquare, X, Send, Bot, User, Loader2, RefreshCw } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 
+import { getOrCreateSessionId } from '@/src/lib/session';
+
 export interface ChatMessage {
   id: string;
   text: string;
@@ -105,14 +107,16 @@ export default function ChatbotWidget() {
         };
         setMessages(prev => [...prev, botReply]);
       } else {
-        // Tembak ke n8n
+        const sessionId = getOrCreateSessionId();
+
+        // Tembak ke n8n dengan sessionId yang sama dengan Cart/Customer
         const response = await fetch(N8N_WEBHOOK_URL, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            sessionId: "guest", // or extract from cookie if available
+            sessionId,
             message: userMsg.text,
             timestamp: userMsg.timestamp
           }),
