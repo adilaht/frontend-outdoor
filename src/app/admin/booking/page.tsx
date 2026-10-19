@@ -60,8 +60,8 @@ export default function AdminBookingPage() {
   const getFotoIdentitasUrl = (path: string | null) => {
     if (!path) return '';
     if (path.startsWith('http://') || path.startsWith('https://')) return path;
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-    const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+    const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000').replace(/\/+$/, '');
+    const cleanPath = path.replace(/^\/+/, '');
     const token = typeof window !== 'undefined' ? localStorage.getItem('admin_token') : '';
     return `${baseUrl}/${cleanPath}${token ? `?token=${token}` : ''}`;
   };
