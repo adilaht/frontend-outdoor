@@ -57,6 +57,20 @@ export default function AdminBookingPage() {
   const [catatanDenda, setCatatanDenda] = useState('');
   const [showIdPreview, setShowIdPreview] = useState(false);
 
+  const getFotoIdentitasUrl = (path: string | null) => {
+    if (!path) return '';
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+    const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('admin_token') : '';
+    return `${baseUrl}/${cleanPath}${token ? `?token=${token}` : ''}`;
+  };
+
+  const isImagePath = (val: string | null) => {
+    if (!val) return false;
+    return /\.(jpg|jpeg|png|webp|gif|svg)$/i.test(val) || val.includes('/') || val.startsWith('storage');
+  };
+
   const fetchBookings = async () => {
     try {
       setIsLoading(true);
@@ -479,18 +493,25 @@ export default function AdminBookingPage() {
                       <h3 className="font-black text-zinc-900 mb-4 flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-purple-500"></span> Kartu Identitas
                       </h3>
-                      <div className="relative group cursor-pointer" onClick={() => setShowIdPreview(true)}>
-                        <img
-                          src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/${detailModal.data.foto_identitas}`}
-                          alt="Foto Identitas"
-                          className="w-full max-h-[200px] object-contain rounded-xl border border-zinc-100 bg-zinc-50"
-                        />
-                        <div className="absolute inset-0 bg-zinc-900/0 group-hover:bg-zinc-900/40 rounded-xl transition-all duration-200 flex items-center justify-center">
-                          <div className="bg-white/90 px-4 py-2 rounded-xl text-sm font-bold text-zinc-900 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2 shadow-lg">
-                            <ZoomIn className="w-4 h-4" /> Perbesar
+                      {isImagePath(detailModal.data.foto_identitas) ? (
+                        <div className="relative group cursor-pointer" onClick={() => setShowIdPreview(true)}>
+                          <img
+                            src={getFotoIdentitasUrl(detailModal.data.foto_identitas)}
+                            alt="Foto Identitas"
+                            className="w-full max-h-[200px] object-contain rounded-xl border border-zinc-100 bg-zinc-50"
+                          />
+                          <div className="absolute inset-0 bg-zinc-900/0 group-hover:bg-zinc-900/40 rounded-xl transition-all duration-200 flex items-center justify-center">
+                            <div className="bg-white/90 px-4 py-2 rounded-xl text-sm font-bold text-zinc-900 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2 shadow-lg">
+                              <ZoomIn className="w-4 h-4" /> Perbesar
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-4">
+                          <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">No. Identitas Fisik (POS)</p>
+                          <p className="text-base font-black font-mono text-zinc-900 mt-1">{detailModal.data.foto_identitas}</p>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -606,15 +627,15 @@ export default function AdminBookingPage() {
       )}
 
       {/* Fullscreen ID Preview */}
-      {showIdPreview && detailModal.data?.foto_identitas && (
+      {showIdPreview && detailModal.data?.foto_identitas && isImagePath(detailModal.data.foto_identitas) && (
         <div className="fixed inset-0 z-[60] bg-zinc-900/90 backdrop-blur-md flex items-center justify-center p-4" onClick={() => setShowIdPreview(false)}>
-          <button className="absolute top-6 right-6 bg-white/10 hover:bg-white/20 p-3 rounded-full transition" onClick={() => setShowIdPreview(false)}>
+          <button className="absolute top-6 right-6 bg-white/10 hover:bg-white/20 p-3 rounded-full transition cursor-pointer" onClick={() => setShowIdPreview(false)}>
             <X className="w-6 h-6 text-white" />
           </button>
           <img
-            src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/${detailModal.data.foto_identitas}`}
+            src={getFotoIdentitasUrl(detailModal.data.foto_identitas)}
             alt="Foto Identitas Full"
-            className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl"
+            className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl bg-black/40"
             onClick={(e) => e.stopPropagation()}
           />
         </div>
