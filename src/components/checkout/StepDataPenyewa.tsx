@@ -25,18 +25,89 @@ export default function StepDataPenyewa({ onSuccess }: Step1Props) {
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
   
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [isCompressing, setIsCompressing] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState('');
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 🌟 HELPER KOMPRESI CLIENT-SIDE: Merampingkan foto kamera HP (2MB - 10MB) jadi ~150KB - 250KB JPEG
+  const compressImage = (file: File): Promise<File> => {
+    return new Promise((resolve) => {
+      if (!file.type.startsWith('image/')) return resolve(file);
+
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const maxWidth = 1280;
+          const maxHeight = 1280;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return resolve(file);
+
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) return resolve(file);
+              const cleanName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
+              const compressedFile = new File([blob], cleanName, {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+              });
+              resolve(compressedFile);
+            },
+            'image/jpeg',
+            0.8
+          );
+        };
+        img.onerror = () => resolve(file);
+      };
+      reader.onerror = () => resolve(file);
+    });
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      if (file.size > 2 * 1024 * 1024) {
-        setErrorMessage("Ukuran file terlalu jumbo! Maksimal 2MB ya bro.");
-        return;
-      }
-      setFileIdentitas(file);
-      setPreviewUrl(URL.createObjectURL(file));
+      const originalFile = e.target.files[0];
+      setIsCompressing(true);
       setErrorMessage('');
+
+      try {
+        // Otomatis kompresi gambar agar upload di HP sangat ringan dan cepat
+        const compressed = await compressImage(originalFile);
+
+        if (compressed.size > 2 * 1024 * 1024) {
+          setErrorMessage("Ukuran file terlalu besar! Silakan gunakan foto yang lebih jelas/ringan.");
+          setIsCompressing(false);
+          return;
+        }
+
+        setFileIdentitas(compressed);
+        setPreviewUrl(URL.createObjectURL(compressed));
+      } catch (err) {
+        console.error("Gagal kompresi file:", err);
+        setFileIdentitas(originalFile);
+        setPreviewUrl(URL.createObjectURL(originalFile));
+      } finally {
+        setIsCompressing(false);
+      }
     }
   };
 
@@ -85,10 +156,17 @@ export default function StepDataPenyewa({ onSuccess }: Step1Props) {
       if (response?.success) {
         onSuccess("", email); 
       } else {
-        throw new Error(response?.error || "Gagal memproses data checkout.");
+        throw new Error(response?.error || response?.message || "Gagal memproses data checkout.");
       }
     } catch (err: any) {
-      setErrorMessage(err?.error || "Terjadi kesalahan saat mendaftarkan booking.");
+      console.error("💥 Error checkout step 1:", err);
+      const message =
+        err?.error ||
+        err?.message ||
+        err?.data?.message ||
+        (typeof err === 'string' ? err : null) ||
+        "Terjadi kesalahan saat mendaftarkan booking.";
+      setErrorMessage(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -180,7 +258,12 @@ export default function StepDataPenyewa({ onSuccess }: Step1Props) {
 
             {/* Preview Panel */}
             <div className="h-[140px] bg-zinc-50 border-2 border-zinc-100 rounded-2xl flex items-center justify-center overflow-hidden shadow-inner p-1">
-              {previewUrl ? (
+              {isCompressing ? (
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-5 h-5 border-2 border-brand-accent border-t-transparent rounded-full animate-spin" />
+                  <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Mengoptimalkan...</span>
+                </div>
+              ) : previewUrl ? (
                 <img src={previewUrl} alt="KTP Preview" className="w-full h-full object-cover rounded-xl transition-all duration-300" />
               ) : (
                 <span className="text-[10px] text-zinc-400 font-black tracking-widest uppercase opacity-50">Belum ada berkas</span>
@@ -202,13 +285,18 @@ export default function StepDataPenyewa({ onSuccess }: Step1Props) {
           
           <button 
             type="submit" 
-            disabled={isSubmitting} 
+            disabled={isSubmitting || isCompressing} 
             className="w-full sm:w-2/3 bg-brand-dark hover:bg-brand-accent text-white disabled:bg-zinc-200 disabled:text-zinc-400 font-black py-5 rounded-2xl text-xs uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-3 cursor-pointer disabled:cursor-not-allowed shadow-xl hover:shadow-brand-accent/20 active:scale-[0.98]"
           >
             {isSubmitting ? (
               <>
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                 <span>Mendaftarkan Booking...</span>
+              </>
+            ) : isCompressing ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <span>Menyiapkan Berkas...</span>
               </>
             ) : (
               <>
