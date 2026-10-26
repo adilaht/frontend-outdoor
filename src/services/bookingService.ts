@@ -1,43 +1,115 @@
-import { apiInstance } from '@/src/lib/axios';
+/**
+ * bookingService.ts
+ * 
+ * ⚡ Menggunakan NATIVE FETCH API — bukan Axios XMLHttpRequest.
+ * 
+ * Alasan: Chrome Android (terutama versi Android 10+) memiliki bug di mana 
+ * XMLHttpRequest.send(FormData) dengan withCredentials=true pada cross-origin 
+ * request sering kali hang/freeze setelah CORS preflight berhasil, sehingga 
+ * POST tidak pernah terkirim ke server. Native fetch API tidak memiliki bug ini.
+ */
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const CHECKOUT_TIMEOUT_MS = 60_000; // 60 detik — lebih longgar untuk koneksi seluler lambat
 
 export async function submitCheckoutStep1(
   formData: FormData,
   onProgress?: (percent: number) => void
 ): Promise<any> {
+  // Ambil session ID & admin token dari localStorage
+  const sessionId = typeof window !== 'undefined' ? localStorage.getItem('session_id') || '' : '';
+  const adminToken = typeof window !== 'undefined' ? localStorage.getItem('admin_token') || '' : '';
+
+  // Headers — JANGAN set Content-Type karena browser perlu generate boundary multipart sendiri
+  const headers: Record<string, string> = {};
+  if (sessionId) headers['x-session-id'] = sessionId;
+  if (adminToken) headers['Authorization'] = `Bearer ${adminToken}`;
+
+  // AbortController untuk timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), CHECKOUT_TIMEOUT_MS);
+
   try {
-    // Header wajib menggunakan multipart/form-data untuk upload file
-    const response = await apiInstance.post('/api/booking/checkout', formData, {
-      headers: {
-        // Sertakan session_id lewat header jika backend memerlukannya untuk tracking cart
-        'x-session-id': localStorage.getItem('session_id') || '', 
-      },
-      onUploadProgress: (progressEvent) => {
-        if (progressEvent.total && onProgress) {
-          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          onProgress(percent);
-        }
-      },
+    // 🔥 Langsung simulasikan progress karena fetch API tidak mendukung upload progress native.
+    // File sudah dikompresi ke ~70KB jadi upload instan pada WiFi/4G.
+    let progressInterval: ReturnType<typeof setInterval> | null = null;
+    if (onProgress) {
+      let fakePercent = 0;
+      onProgress(0);
+      progressInterval = setInterval(() => {
+        // Naikkan progress secara bertahap sampai 90%, sisanya saat response diterima
+        fakePercent = Math.min(fakePercent + Math.random() * 15 + 5, 90);
+        onProgress(Math.round(fakePercent));
+      }, 300);
+    }
+
+    const response = await fetch(`${API_BASE}/api/booking/checkout`, {
+      method: 'POST',
+      headers,
+      body: formData,
+      signal: controller.signal,
+      // KUNCI: credentials 'include' agar cookie & auth dikirim, 
+      // tapi native fetch jauh lebih andal dari XHR untuk kasus ini
+      credentials: 'include',
     });
-    return response.data;
+
+    // Hentikan progress simulasi
+    if (progressInterval) clearInterval(progressInterval);
+    if (onProgress) onProgress(100);
+
+    // Parse response body
+    const contentType = response.headers.get('content-type') || '';
+    let data: any;
+    if (contentType.includes('application/json')) {
+      data = await response.json();
+    } else {
+      const text = await response.text();
+      try { data = JSON.parse(text); } catch { data = { error: text }; }
+    }
+
+    // Handle HTTP error status
+    if (!response.ok) {
+      if (response.status === 413) {
+        throw {
+          error: "Ukuran berkas identitas terlalu besar untuk diterima oleh server (Batas upload terlampaui).",
+          isPayloadTooLarge: true,
+        };
+      }
+      throw {
+        error: data?.error || data?.message || `Server merespons dengan status ${response.status}`,
+      };
+    }
+
+    return data;
   } catch (error: any) {
     console.error("Gagal submit checkout step 1:", error);
-    if (error?.response?.data) {
-      throw error.response.data;
-    }
-    if (error?.code === 'ECONNABORTED' || error?.message?.includes('timeout')) {
+
+    // Timeout via AbortController
+    if (error?.name === 'AbortError') {
       throw {
-        error: "Koneksi ke server timeout. Pengunggahan berkas membutuhkan waktu terlalu lama atau koneksi seluler terputus. Silakan coba lagi.",
+        error: "Koneksi ke server timeout (60 detik). Pastikan jaringan internet stabil dan coba lagi.",
         isTimeout: true,
       };
     }
-    if (error?.response?.status === 413) {
+
+    // Network failure (DNS, offline, CORS block)
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
       throw {
-        error: "Ukuran berkas identitas terlalu besar untuk diterima oleh server (Batas upload terlampaui).",
-        isPayloadTooLarge: true,
+        error: "Tidak dapat terhubung ke server. Periksa koneksi internet Anda dan coba lagi.",
+        isNetworkError: true,
       };
     }
+
+    // Re-throw jika sudah dalam format yang kita buat
+    if (error?.isTimeout || error?.isPayloadTooLarge || error?.isNetworkError) {
+      throw error;
+    }
+
+    // Error lainnya
     throw {
-      error: error?.message || "Terjadi kesalahan jaringan saat mendaftarkan sewa.",
+      error: error?.error || error?.message || "Terjadi kesalahan jaringan saat mendaftarkan sewa.",
     };
+  } finally {
+    clearTimeout(timeoutId);
   }
 }

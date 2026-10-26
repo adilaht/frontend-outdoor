@@ -225,12 +225,26 @@ export default function StepDataPenyewa({ onSuccess }: Step1Props) {
       if (!isValidPhone(noHp)) return setErrorMessage("Format nomor handphone tidak valid (hanya angka, +, spasi, -).");
 
       const filename = (fileIdentitas as any).name || fileStats?.name || 'identitas.jpg';
+
+      // 🔥 KUNCI ANTI-FREEZE: Materialisasi Blob ke ArrayBuffer lalu buat File baru.
+      // Chrome Android sering hang saat FormData.append() mencoba membaca canvas Blob 
+      // yang belum sepenuhnya termaterialisasi di memori. Dengan mengkonversi ke 
+      // ArrayBuffer terlebih dahulu, kita memastikan semua byte sudah siap.
+      let safeFile: File;
+      try {
+        const arrayBuffer = await fileIdentitas.arrayBuffer();
+        safeFile = new File([arrayBuffer], filename, { type: 'image/jpeg' });
+      } catch {
+        // Fallback jika arrayBuffer() gagal (browser lama) - gunakan Blob langsung
+        safeFile = new File([fileIdentitas], filename, { type: 'image/jpeg' });
+      }
+
       const formData = new FormData();
       formData.append('nama_customer', nama);
       formData.append('no_hp', noHp);
       formData.append('email', email);
       formData.append('alamat', alamat);
-      formData.append('foto_identitas', fileIdentitas, filename);
+      formData.append('foto_identitas', safeFile);
       formData.append('tanggal_mulai', format(dateRange.from, 'yyyy-MM-dd'));
       formData.append('tanggal_selesai', format(dateRange.to, 'yyyy-MM-dd'));
 
