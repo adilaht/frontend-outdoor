@@ -5,7 +5,7 @@ import { useCartGlobal } from '@/src/context/CartContext';
 import { submitCheckoutStep1 } from '@/src/services/bookingService';
 import { format } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
-import { Calendar, UploadCloud, AlertCircle, User, Phone, Mail, MapPin, ArrowRight, ArrowLeft, FileText } from 'lucide-react';
+import { Calendar, UploadCloud, AlertCircle, User, Phone, Mail, MapPin, ArrowRight, ArrowLeft, FileText, CheckCircle2, Trash2, RefreshCw, Sparkles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { validateFormText, isValidEmail, isValidPhone } from '@/src/utils/validation';
 
@@ -23,91 +23,174 @@ export default function StepDataPenyewa({ onSuccess }: Step1Props) {
   const [alamat, setAlamat] = React.useState('');
   const [fileIdentitas, setFileIdentitas] = React.useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isCompressing, setIsCompressing] = React.useState(false);
+  const [compressStatus, setCompressStatus] = React.useState('Mengompresi foto...');
+  const [fileStats, setFileStats] = React.useState<{
+    originalSize: string;
+    compressedSize: string;
+    savedPercent: number;
+    name: string;
+  } | null>(null);
   const [errorMessage, setErrorMessage] = React.useState('');
 
-  // 🌟 HELPER KOMPRESI CLIENT-SIDE: Merampingkan foto kamera HP (2MB - 10MB) jadi ~150KB - 250KB JPEG secara instan
+  // 🌟 HELPER FORMAT BYTES UNTUK DISPLAY STATISTIK
+  const formatBytes = (bytes: number, decimals = 1): string => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+  };
+
+  // 🌟 HELPER HAPUS FOTO
+  const handleRemoveFile = () => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    setFileIdentitas(null);
+    setPreviewUrl(null);
+    setFileStats(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // 🌟 HELPER KOMPRESI CLIENT-SIDE DENGAN TIMEOUT & ERROR GUARD
   const compressImage = (file: File): Promise<File> => {
-    return new Promise((resolve) => {
-      if (!file.type.startsWith('image/')) return resolve(file);
+    return new Promise((resolve, reject) => {
+      const isValidFormat = file.type.startsWith('image/') || /\.(jpe?g|png|webp|heic)$/i.test(file.name);
+      if (!isValidFormat) {
+        return reject(new Error("Format berkas tidak didukung! Wajib berupa gambar JPG, PNG, atau WEBP."));
+      }
 
       const objectUrl = URL.createObjectURL(file);
       const img = new Image();
-      img.src = objectUrl;
+
+      // Guard timeout 6 detik jika browser gagal decode gambar besar / corrupt
+      const timer = setTimeout(() => {
+        URL.revokeObjectURL(objectUrl);
+        if (file.size <= 2 * 1024 * 1024) {
+          resolve(file);
+        } else {
+          reject(new Error("Waktu kompresi habis. Silakan gunakan foto lain dengan format JPG standar."));
+        }
+      }, 6000);
 
       img.onload = () => {
+        clearTimeout(timer);
         URL.revokeObjectURL(objectUrl);
-        const maxWidth = 1280;
-        const maxHeight = 1280;
-        let width = img.width;
-        let height = img.height;
 
-        if (width > height) {
-          if (width > maxWidth) {
-            height = Math.round((height * maxWidth) / width);
-            width = maxWidth;
+        try {
+          const maxWidth = 1280;
+          const maxHeight = 1280;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > maxWidth || height > maxHeight) {
+            if (width > height) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            } else {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
           }
-        } else {
-          if (height > maxHeight) {
-            width = Math.round((width * maxHeight) / height);
-            height = maxHeight;
-          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return resolve(file);
+
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) return resolve(file);
+              const cleanName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
+              const compressedFile = new File([blob], cleanName, {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+              });
+              resolve(compressedFile);
+            },
+            'image/jpeg',
+            0.75
+          );
+        } catch (canvasErr) {
+          console.error("Canvas draw error:", canvasErr);
+          resolve(file);
         }
-
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return resolve(file);
-
-        ctx.drawImage(img, 0, 0, width, height);
-        canvas.toBlob(
-          (blob) => {
-            if (!blob) return resolve(file);
-            const cleanName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
-            const compressedFile = new File([blob], cleanName, {
-              type: 'image/jpeg',
-              lastModified: Date.now(),
-            });
-            resolve(compressedFile);
-          },
-          'image/jpeg',
-          0.8
-        );
       };
 
       img.onerror = () => {
+        clearTimeout(timer);
         URL.revokeObjectURL(objectUrl);
-        resolve(file);
+        if (/\.heic$/i.test(file.name)) {
+          reject(new Error("Format foto HEIC iPhone belum didukung langsung oleh browser. Silakan ganti ke foto JPG/PNG."));
+        } else {
+          reject(new Error("Berkas gambar tidak dapat dibaca atau rusak. Silakan pilih foto lain."));
+        }
       };
+
+      img.src = objectUrl;
     });
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const originalFile = e.target.files[0];
-      setIsCompressing(true);
       setErrorMessage('');
 
+      // 1. Guard ukuran file awal (maks 15MB)
+      if (originalFile.size > 15 * 1024 * 1024) {
+        setErrorMessage("Ukuran foto melebihi batas 15MB! Silakan pilih foto yang lebih ringkas.");
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+
+      // 2. Guard format ekstensi
+      const isFormatOk = originalFile.type.startsWith('image/') || /\.(jpe?g|png|webp|heic)$/i.test(originalFile.name);
+      if (!isFormatOk) {
+        setErrorMessage("Format berkas tidak didukung! Wajib berupa gambar JPG, PNG, atau WEBP.");
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+
+      setIsCompressing(true);
+      setCompressStatus('Mengompresi & merampingkan foto...');
+
       try {
-        // Otomatis kompresi gambar agar upload di HP sangat ringan dan cepat
         const compressed = await compressImage(originalFile);
 
-        // Toleransi aman hingga 5MB (hasil kompresi biasanya cuma 150KB - 300KB)
-        if (compressed.size > 5 * 1024 * 1024) {
-          setErrorMessage("Ukuran file terlalu besar! Silakan gunakan foto yang lebih jelas/ringan.");
-          setIsCompressing(false);
-          return;
+        // 3. Guard hasil kompresi (maks 4MB)
+        if (compressed.size > 4 * 1024 * 1024) {
+          throw new Error("Hasil kompresi masih terlalu besar (> 4MB). Silakan gunakan foto dokumen yang lebih sederhana.");
         }
+
+        const originalBytes = originalFile.size;
+        const compressedBytes = compressed.size;
+        const savedPercent = Math.max(0, Math.round(((originalBytes - compressedBytes) / originalBytes) * 100));
+
+        setFileStats({
+          originalSize: formatBytes(originalBytes),
+          compressedSize: formatBytes(compressedBytes),
+          savedPercent,
+          name: originalFile.name,
+        });
 
         setFileIdentitas(compressed);
         setPreviewUrl(URL.createObjectURL(compressed));
-      } catch (err) {
+      } catch (err: any) {
         console.error("Gagal kompresi file:", err);
-        setFileIdentitas(originalFile);
-        setPreviewUrl(URL.createObjectURL(originalFile));
+        setErrorMessage(err?.message || "Gagal mengompresi gambar. Silakan gunakan foto lain.");
+        handleRemoveFile();
       } finally {
         setIsCompressing(false);
       }
@@ -163,12 +246,16 @@ export default function StepDataPenyewa({ onSuccess }: Step1Props) {
       }
     } catch (err: any) {
       console.error("💥 Error checkout step 1:", err);
-      const message =
-        err?.error ||
-        err?.message ||
-        err?.data?.message ||
-        (typeof err === 'string' ? err : null) ||
-        "Terjadi kesalahan saat mendaftarkan booking.";
+      let message = "Terjadi kesalahan saat mendaftarkan booking.";
+      if (err?.isTimeout) {
+        message = "Koneksi ke server timeout (30 detik). Server belum merespons atau sinyal internet lambat. Silakan periksa koneksi Anda dan coba lagi.";
+      } else if (err?.isPayloadTooLarge) {
+        message = "Ukuran berkas identitas terlalu besar untuk diterima oleh server. Silakan coba unggah foto yang lebih ringan.";
+      } else if (err?.error) {
+        message = err.error;
+      } else if (err?.message) {
+        message = err.message;
+      }
       setErrorMessage(message);
     } finally {
       setIsSubmitting(false);
@@ -247,32 +334,113 @@ export default function StepDataPenyewa({ onSuccess }: Step1Props) {
 
         {/* Upload Identitas Box */}
         <div className="space-y-3">
-          <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Berkas Foto KTP / SIM</label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Dropzone */}
-            <label className="flex flex-col items-center justify-center border-2 border-dashed border-zinc-200 hover:border-brand-accent bg-zinc-50 hover:bg-brand-accent/5 p-6 rounded-2xl cursor-pointer transition-all duration-300 text-center group relative min-h-[140px]">
-              <div className="bg-white p-3 rounded-full shadow-sm mb-3 group-hover:scale-110 transition-transform duration-300">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">
+              Berkas Foto KTP / SIM
+            </label>
+            <span className="text-[10px] text-zinc-400 font-medium">Maksimal 15MB • JPG, PNG, WEBP</span>
+          </div>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+
+          {isCompressing ? (
+            /* 1. ANIMASI SAAT SEDANG MENGOMPRESI */
+            <div className="border-2 border-dashed border-brand-accent/50 bg-brand-accent/5 rounded-2xl p-6 flex flex-col items-center justify-center gap-3 animate-pulse text-center min-h-[140px]">
+              <div className="relative">
+                <div className="w-10 h-10 border-3 border-brand-accent/30 border-t-brand-accent rounded-full animate-spin" />
+                <Sparkles className="h-4 w-4 text-brand-accent absolute -top-1 -right-1 animate-bounce" />
+              </div>
+              <div>
+                <p className="text-xs font-black text-brand-dark uppercase tracking-wider">
+                  Sedang Mengompresi Berkas...
+                </p>
+                <p className="text-[11px] text-zinc-500 mt-1 font-medium">
+                  {compressStatus}
+                </p>
+              </div>
+            </div>
+          ) : fileIdentitas && previewUrl && fileStats ? (
+            /* 2. KARTU HASIL KOMPRESI & PRATINJAU */
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-2xl p-4 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center gap-2 text-emerald-700 font-bold text-xs">
+                    <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+                    <span>Foto Siap Diunggah</span>
+                  </div>
+                  <p className="text-xs font-bold text-zinc-800 mt-2 truncate" title={fileStats.name}>
+                    {fileStats.name}
+                  </p>
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    <span className="text-[11px] text-zinc-400 line-through font-medium">
+                      {fileStats.originalSize}
+                    </span>
+                    <ArrowRight className="h-3 w-3 text-emerald-600" />
+                    <span className="text-xs font-black text-emerald-700 bg-white px-2 py-0.5 rounded-lg border border-emerald-200 shadow-xs">
+                      {fileStats.compressedSize}
+                    </span>
+                    <span className="text-[10px] font-bold bg-emerald-600 text-white px-2 py-0.5 rounded-full">
+                      Hemat {fileStats.savedPercent}%
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-3 mt-3 border-t border-emerald-100">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex-1 bg-white hover:bg-zinc-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    <span>Ganti Foto</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRemoveFile}
+                    className="bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 text-[11px] font-bold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>Hapus</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="h-[140px] relative rounded-2xl overflow-hidden border border-zinc-200 bg-zinc-900 shadow-sm group">
+                <img
+                  src={previewUrl}
+                  alt="KTP Preview"
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                />
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-2 text-center">
+                  <span className="text-[10px] text-white/90 font-bold uppercase tracking-wider">
+                    Pratinjau KTP
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* 3. DROPZONE PEMILIHAN BERKAS */
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="flex flex-col items-center justify-center border-2 border-dashed border-zinc-200 hover:border-brand-accent bg-zinc-50/70 hover:bg-brand-accent/5 p-6 rounded-2xl cursor-pointer transition-all duration-300 text-center group min-h-[140px]"
+            >
+              <div className="bg-white p-3.5 rounded-full shadow-sm mb-2.5 group-hover:scale-110 group-hover:shadow-md transition-all duration-300">
                 <UploadCloud className="h-6 w-6 text-brand-accent" />
               </div>
-              <span className="text-xs text-brand-dark font-black uppercase tracking-wider">Pilih Dokumen</span>
-              <span className="text-[10px] text-zinc-400 mt-1 font-medium">Format JPG/PNG • Otomatis Dioptimalkan</span>
-              <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
-            </label>
-
-            {/* Preview Panel */}
-            <div className="h-[140px] bg-zinc-50 border-2 border-zinc-100 rounded-2xl flex items-center justify-center overflow-hidden shadow-inner p-1">
-              {isCompressing ? (
-                <div className="flex flex-col items-center gap-2">
-                  <div className="w-5 h-5 border-2 border-brand-accent border-t-transparent rounded-full animate-spin" />
-                  <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Mengoptimalkan...</span>
-                </div>
-              ) : previewUrl ? (
-                <img src={previewUrl} alt="KTP Preview" className="w-full h-full object-cover rounded-xl transition-all duration-300" />
-              ) : (
-                <span className="text-[10px] text-zinc-400 font-black tracking-widest uppercase opacity-50">Belum ada berkas</span>
-              )}
+              <span className="text-xs text-brand-dark font-black uppercase tracking-wider">
+                Pilih Dokumen KTP / SIM
+              </span>
+              <span className="text-[11px] text-zinc-400 mt-1 font-medium">
+                Ambil Foto Kamera atau Galeri • Otomatis Dioptimalkan Instan
+              </span>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Action Buttons */}
