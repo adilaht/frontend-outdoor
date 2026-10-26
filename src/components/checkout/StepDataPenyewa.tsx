@@ -34,6 +34,7 @@ export default function StepDataPenyewa({ onSuccess }: Step1Props) {
     savedPercent: number;
     name: string;
   } | null>(null);
+  const [uploadProgress, setUploadProgress] = React.useState<number>(0);
   const [errorMessage, setErrorMessage] = React.useState('');
 
   // 🌟 HELPER FORMAT BYTES UNTUK DISPLAY STATISTIK
@@ -85,8 +86,8 @@ export default function StepDataPenyewa({ onSuccess }: Step1Props) {
         URL.revokeObjectURL(objectUrl);
 
         try {
-          const maxWidth = 1280;
-          const maxHeight = 1280;
+          const maxWidth = 1000;
+          const maxHeight = 1000;
           let width = img.width;
           let height = img.height;
 
@@ -107,7 +108,7 @@ export default function StepDataPenyewa({ onSuccess }: Step1Props) {
           if (!ctx) return resolve(file);
 
           ctx.imageSmoothingEnabled = true;
-          ctx.imageSmoothingQuality = 'high';
+          ctx.imageSmoothingQuality = 'medium';
           ctx.drawImage(img, 0, 0, width, height);
 
           canvas.toBlob(
@@ -121,7 +122,7 @@ export default function StepDataPenyewa({ onSuccess }: Step1Props) {
               resolve(compressedFile);
             },
             'image/jpeg',
-            0.75
+            0.65
           );
         } catch (canvasErr) {
           console.error("Canvas draw error:", canvasErr);
@@ -237,7 +238,10 @@ export default function StepDataPenyewa({ onSuccess }: Step1Props) {
       formData.append('tanggal_mulai', format(dateRange.from, 'yyyy-MM-dd'));
       formData.append('tanggal_selesai', format(dateRange.to, 'yyyy-MM-dd'));
 
-      const response = await submitCheckoutStep1(formData);
+      setUploadProgress(0);
+      const response = await submitCheckoutStep1(formData, (percent) => {
+        setUploadProgress(percent);
+      });
 
       if (response?.success) {
         onSuccess("", email);
@@ -462,7 +466,11 @@ export default function StepDataPenyewa({ onSuccess }: Step1Props) {
             {isSubmitting ? (
               <>
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                <span>Mendaftarkan Booking...</span>
+                <span>
+                  {uploadProgress > 0 && uploadProgress < 100
+                    ? `Mengunggah Foto (${uploadProgress}%)...`
+                    : "Memproses Verifikasi..."}
+                </span>
               </>
             ) : isCompressing ? (
               <>

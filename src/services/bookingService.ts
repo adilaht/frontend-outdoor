@@ -1,12 +1,21 @@
 import { apiInstance } from '@/src/lib/axios';
 
-export async function submitCheckoutStep1(formData: FormData): Promise<any> {
+export async function submitCheckoutStep1(
+  formData: FormData,
+  onProgress?: (percent: number) => void
+): Promise<any> {
   try {
     // Header wajib menggunakan multipart/form-data untuk upload file
     const response = await apiInstance.post('/api/booking/checkout', formData, {
       headers: {
         // Sertakan session_id lewat header jika backend memerlukannya untuk tracking cart
         'x-session-id': localStorage.getItem('session_id') || '', 
+      },
+      onUploadProgress: (progressEvent) => {
+        if (progressEvent.total && onProgress) {
+          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          onProgress(percent);
+        }
       },
     });
     return response.data;
@@ -17,7 +26,7 @@ export async function submitCheckoutStep1(formData: FormData): Promise<any> {
     }
     if (error?.code === 'ECONNABORTED' || error?.message?.includes('timeout')) {
       throw {
-        error: "Koneksi ke server timeout (30 detik). Server belum merespons atau sinyal internet lambat.",
+        error: "Koneksi ke server timeout. Pengunggahan berkas membutuhkan waktu terlalu lama atau koneksi seluler terputus. Silakan coba lagi.",
         isTimeout: true,
       };
     }
