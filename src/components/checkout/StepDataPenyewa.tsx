@@ -16,14 +16,14 @@ interface Step1Props {
 export default function StepDataPenyewa({ onSuccess }: Step1Props) {
   const { dateRange } = useCartGlobal();
   const router = useRouter();
-  
+
   const [nama, setNama] = React.useState('');
   const [noHp, setNoHp] = React.useState('');
   const [email, setEmail] = React.useState('');
   const [alamat, setAlamat] = React.useState('');
   const [fileIdentitas, setFileIdentitas] = React.useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
-  
+
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isCompressing, setIsCompressing] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState('');
@@ -138,10 +138,10 @@ export default function StepDataPenyewa({ onSuccess }: Step1Props) {
       // Validasi XSS dan SQLi
       const valNama = validateFormText(nama, "Nama lengkap");
       if (!valNama.isValid) return setErrorMessage(valNama.error);
-      
+
       const valAlamat = validateFormText(alamat, "Alamat");
       if (!valAlamat.isValid) return setErrorMessage(valAlamat.error);
-      
+
       if (!isValidEmail(email)) return setErrorMessage("Format email tidak valid.");
       if (!isValidPhone(noHp)) return setErrorMessage("Format nomor handphone tidak valid (hanya angka, +, spasi, -).");
 
@@ -150,14 +150,14 @@ export default function StepDataPenyewa({ onSuccess }: Step1Props) {
       formData.append('no_hp', noHp);
       formData.append('email', email);
       formData.append('alamat', alamat);
-      formData.append('foto_identitas', fileIdentitas, fileIdentitas.name); 
+      formData.append('foto_identitas', fileIdentitas, fileIdentitas.name);
       formData.append('tanggal_mulai', format(dateRange.from, 'yyyy-MM-dd'));
       formData.append('tanggal_selesai', format(dateRange.to, 'yyyy-MM-dd'));
 
       const response = await submitCheckoutStep1(formData);
-      
+
       if (response?.success) {
-        onSuccess("", email); 
+        onSuccess("", email);
       } else {
         throw new Error(response?.error || response?.message || "Gagal memproses data checkout.");
       }
@@ -178,7 +178,7 @@ export default function StepDataPenyewa({ onSuccess }: Step1Props) {
   return (
     // ✨ FIX BACKROUND: Diubah ke Putih bersih (bg-white) dengan bayangan mewah (shadow-2xl)
     <div className="bg-white border border-zinc-200/60 rounded-[2rem] shadow-2xl shadow-zinc-200/50 overflow-hidden max-w-2xl mx-auto">
-      
+
       {/* Header Form */}
       <div className="p-8 border-b border-zinc-100 flex items-center justify-between bg-zinc-50/80">
         <div>
@@ -285,10 +285,10 @@ export default function StepDataPenyewa({ onSuccess }: Step1Props) {
             <ArrowLeft className="h-4 w-4" />
             <span>Kembali</span>
           </button>
-          
-          <button 
-            type="submit" 
-            disabled={isSubmitting || isCompressing} 
+
+          <button
+            type="submit"
+            disabled={isSubmitting || isCompressing}
             className="w-full sm:w-2/3 bg-brand-dark hover:bg-brand-accent text-white disabled:bg-zinc-200 disabled:text-zinc-400 font-black py-5 rounded-2xl text-xs uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-3 cursor-pointer disabled:cursor-not-allowed shadow-xl hover:shadow-brand-accent/20 active:scale-[0.98]"
           >
             {isSubmitting ? (
