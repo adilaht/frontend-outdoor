@@ -21,7 +21,7 @@ export default function StepDataPenyewa({ onSuccess }: Step1Props) {
   const [noHp, setNoHp] = React.useState('');
   const [email, setEmail] = React.useState('');
   const [alamat, setAlamat] = React.useState('');
-  const [fileIdentitas, setFileIdentitas] = React.useState<File | null>(null);
+  const [fileIdentitas, setFileIdentitas] = React.useState<File | Blob | null>(null);
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -61,7 +61,7 @@ export default function StepDataPenyewa({ onSuccess }: Step1Props) {
   };
 
   // 🌟 HELPER KOMPRESI CLIENT-SIDE DENGAN TIMEOUT & ERROR GUARD
-  const compressImage = (file: File): Promise<File> => {
+  const compressImage = (file: File): Promise<File | Blob> => {
     return new Promise((resolve, reject) => {
       const isValidFormat = file.type.startsWith('image/') || /\.(jpe?g|png|webp|heic)$/i.test(file.name);
       if (!isValidFormat) {
@@ -114,12 +114,7 @@ export default function StepDataPenyewa({ onSuccess }: Step1Props) {
           canvas.toBlob(
             (blob) => {
               if (!blob) return resolve(file);
-              const cleanName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
-              const compressedFile = new File([blob], cleanName, {
-                type: 'image/jpeg',
-                lastModified: Date.now(),
-              });
-              resolve(compressedFile);
+              resolve(blob);
             },
             'image/jpeg',
             0.65
@@ -213,7 +208,7 @@ export default function StepDataPenyewa({ onSuccess }: Step1Props) {
     setErrorMessage('');
 
     try {
-      if (!(fileIdentitas instanceof File)) {
+      if (!fileIdentitas || (!(fileIdentitas instanceof File) && !(fileIdentitas instanceof Blob))) {
         setErrorMessage("Berkas KTP tidak valid atau belum terpilih dengan benar.");
         setIsSubmitting(false);
         return;
@@ -229,12 +224,13 @@ export default function StepDataPenyewa({ onSuccess }: Step1Props) {
       if (!isValidEmail(email)) return setErrorMessage("Format email tidak valid.");
       if (!isValidPhone(noHp)) return setErrorMessage("Format nomor handphone tidak valid (hanya angka, +, spasi, -).");
 
+      const filename = (fileIdentitas as any).name || fileStats?.name || 'identitas.jpg';
       const formData = new FormData();
       formData.append('nama_customer', nama);
       formData.append('no_hp', noHp);
       formData.append('email', email);
       formData.append('alamat', alamat);
-      formData.append('foto_identitas', fileIdentitas, fileIdentitas.name);
+      formData.append('foto_identitas', fileIdentitas, filename);
       formData.append('tanggal_mulai', format(dateRange.from, 'yyyy-MM-dd'));
       formData.append('tanggal_selesai', format(dateRange.to, 'yyyy-MM-dd'));
 
@@ -252,7 +248,7 @@ export default function StepDataPenyewa({ onSuccess }: Step1Props) {
       console.error("💥 Error checkout step 1:", err);
       let message = "Terjadi kesalahan saat mendaftarkan booking.";
       if (err?.isTimeout) {
-        message = "Koneksi ke server timeout (30 detik). Server belum merespons atau sinyal internet lambat. Silakan periksa koneksi Anda dan coba lagi.";
+        message = "Koneksi ke server timeout. Pengunggahan berkas membutuhkan waktu terlalu lama atau koneksi seluler terputus. Silakan coba lagi.";
       } else if (err?.isPayloadTooLarge) {
         message = "Ukuran berkas identitas terlalu besar untuk diterima oleh server. Silakan coba unggah foto yang lebih ringan.";
       } else if (err?.error) {
