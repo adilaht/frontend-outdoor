@@ -2,7 +2,7 @@ import axios from 'axios';
 
 export const apiInstance = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000',
-  // timeout: 100000,
+  timeout: 30000, // 30 detik batas waktu agar UI tidak muter selamanya jika jaringan terputus
   withCredentials: true
   // headers: { 'Content-Type': 'application/json' }
 });

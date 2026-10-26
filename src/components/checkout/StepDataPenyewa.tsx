@@ -28,58 +28,60 @@ export default function StepDataPenyewa({ onSuccess }: Step1Props) {
   const [isCompressing, setIsCompressing] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState('');
 
-  // 🌟 HELPER KOMPRESI CLIENT-SIDE: Merampingkan foto kamera HP (2MB - 10MB) jadi ~150KB - 250KB JPEG
+  // 🌟 HELPER KOMPRESI CLIENT-SIDE: Merampingkan foto kamera HP (2MB - 10MB) jadi ~150KB - 250KB JPEG secara instan
   const compressImage = (file: File): Promise<File> => {
     return new Promise((resolve) => {
       if (!file.type.startsWith('image/')) return resolve(file);
 
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = (event) => {
-        const img = new Image();
-        img.src = event.target?.result as string;
-        img.onload = () => {
-          const maxWidth = 1280;
-          const maxHeight = 1280;
-          let width = img.width;
-          let height = img.height;
+      const objectUrl = URL.createObjectURL(file);
+      const img = new Image();
+      img.src = objectUrl;
 
-          if (width > height) {
-            if (width > maxWidth) {
-              height = Math.round((height * maxWidth) / width);
-              width = maxWidth;
-            }
-          } else {
-            if (height > maxHeight) {
-              width = Math.round((width * maxHeight) / height);
-              height = maxHeight;
-            }
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        const maxWidth = 1280;
+        const maxHeight = 1280;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
           }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
 
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) return resolve(file);
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return resolve(file);
 
-          ctx.drawImage(img, 0, 0, width, height);
-          canvas.toBlob(
-            (blob) => {
-              if (!blob) return resolve(file);
-              const cleanName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
-              const compressedFile = new File([blob], cleanName, {
-                type: 'image/jpeg',
-                lastModified: Date.now(),
-              });
-              resolve(compressedFile);
-            },
-            'image/jpeg',
-            0.8
-          );
-        };
-        img.onerror = () => resolve(file);
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) return resolve(file);
+            const cleanName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
+            const compressedFile = new File([blob], cleanName, {
+              type: 'image/jpeg',
+              lastModified: Date.now(),
+            });
+            resolve(compressedFile);
+          },
+          'image/jpeg',
+          0.8
+        );
       };
-      reader.onerror = () => resolve(file);
+
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        resolve(file);
+      };
     });
   };
 
@@ -93,7 +95,8 @@ export default function StepDataPenyewa({ onSuccess }: Step1Props) {
         // Otomatis kompresi gambar agar upload di HP sangat ringan dan cepat
         const compressed = await compressImage(originalFile);
 
-        if (compressed.size > 2 * 1024 * 1024) {
+        // Toleransi aman hingga 5MB (hasil kompresi biasanya cuma 150KB - 300KB)
+        if (compressed.size > 5 * 1024 * 1024) {
           setErrorMessage("Ukuran file terlalu besar! Silakan gunakan foto yang lebih jelas/ringan.");
           setIsCompressing(false);
           return;
@@ -252,7 +255,7 @@ export default function StepDataPenyewa({ onSuccess }: Step1Props) {
                 <UploadCloud className="h-6 w-6 text-brand-accent" />
               </div>
               <span className="text-xs text-brand-dark font-black uppercase tracking-wider">Pilih Dokumen</span>
-              <span className="text-[10px] text-zinc-400 mt-1 font-medium">Format JPG/PNG • Maks 2MB</span>
+              <span className="text-[10px] text-zinc-400 mt-1 font-medium">Format JPG/PNG • Otomatis Dioptimalkan</span>
               <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
             </label>
 
