@@ -30,17 +30,20 @@ export async function submitCheckoutStep1(
   const timeoutId = setTimeout(() => controller.abort(), CHECKOUT_TIMEOUT_MS);
 
   try {
-    // 🔥 Langsung simulasikan progress karena fetch API tidak mendukung upload progress native.
-    // File sudah dikompresi ke ~70KB jadi upload instan pada WiFi/4G.
+    // 🔥 Progress simulasi ASIMPTOTIK — bar selalu bergerak, tidak pernah stuck.
+    // Strategi: setiap interval, progress naik sebagian kecil dari sisa jarak ke 98%.
+    // Makin dekat ke 98%, makin pelan geraknya → terasa natural, tidak pernah diam.
     let progressInterval: ReturnType<typeof setInterval> | null = null;
     if (onProgress) {
       let fakePercent = 0;
       onProgress(0);
       progressInterval = setInterval(() => {
-        // Naikkan progress secara bertahap sampai 90%, sisanya saat response diterima
-        fakePercent = Math.min(fakePercent + Math.random() * 15 + 5, 90);
+        const remaining = 98 - fakePercent;
+        // Ambil 3-6% dari sisa jarak → makin kecil sisanya, makin kecil langkahnya
+        const step = remaining * (0.03 + Math.random() * 0.03);
+        fakePercent = Math.min(fakePercent + Math.max(step, 0.3), 98);
         onProgress(Math.round(fakePercent));
-      }, 300);
+      }, 500);
     }
 
     const response = await fetch(`${API_BASE}/api/booking/checkout`, {

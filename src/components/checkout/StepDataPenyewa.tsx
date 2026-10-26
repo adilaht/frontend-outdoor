@@ -477,9 +477,15 @@ export default function StepDataPenyewa({ onSuccess }: Step1Props) {
               <>
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                 <span>
-                  {uploadProgress > 0 && uploadProgress < 100
+                  {uploadProgress < 40
                     ? `Mengunggah Foto (${uploadProgress}%)...`
-                    : "Memproses Verifikasi..."}
+                    : uploadProgress < 75
+                    ? `Memproses Data (${uploadProgress}%)...`
+                    : uploadProgress < 95
+                    ? `Mendaftarkan Booking (${uploadProgress}%)...`
+                    : uploadProgress < 100
+                    ? `Hampir Selesai (${uploadProgress}%)...`
+                    : "Selesai! Mengalihkan..."}
                 </span>
               </>
             ) : isCompressing ? (
