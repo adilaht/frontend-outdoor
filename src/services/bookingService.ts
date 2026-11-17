@@ -116,3 +116,24 @@ export async function submitCheckoutStep1(
     clearTimeout(timeoutId);
   }
 }
+
+export async function cancelBooking(kode_booking: string): Promise<any> {
+  const sessionId = typeof window !== 'undefined' ? localStorage.getItem('session_id') || '' : '';
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (sessionId) headers['x-session-id'] = sessionId;
+
+  const response = await fetch(`${API_BASE}/api/booking/cancel`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ kode_booking }),
+    credentials: 'include',
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || data?.message || "Gagal membatalkan pesanan.");
+  }
+  return data;
+}

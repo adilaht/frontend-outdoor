@@ -7,13 +7,14 @@ import { format } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
 import { Calendar, UploadCloud, AlertCircle, User, Phone, Mail, MapPin, ArrowRight, ArrowLeft, FileText, CheckCircle2, Trash2, RefreshCw, Sparkles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { validateFormText, isValidEmail, isValidPhone } from '@/src/utils/validation';
+import { validateFormText, isValidEmail, isValidPhone, suggestEmailCorrection, getEmailDomainSuggestions } from '@/src/utils/validation';
 
 interface Step1Props {
   onSuccess: (bookingId: string, email: string) => void;
+  syncedEmail?: string;
 }
 
-export default function StepDataPenyewa({ onSuccess }: Step1Props) {
+export default function StepDataPenyewa({ onSuccess, syncedEmail }: Step1Props) {
   const { dateRange } = useCartGlobal();
   const router = useRouter();
 
@@ -36,6 +37,13 @@ export default function StepDataPenyewa({ onSuccess }: Step1Props) {
   } | null>(null);
   const [uploadProgress, setUploadProgress] = React.useState<number>(0);
   const [errorMessage, setErrorMessage] = React.useState('');
+
+  // 🔄 Sinkronisasi jika email diubah dari Step 2 (Modal Ubah Email)
+  React.useEffect(() => {
+    if (syncedEmail && syncedEmail !== email) {
+      setEmail(syncedEmail);
+    }
+  }, [syncedEmail]);
 
   // 🌟 HELPER FORMAT BYTES UNTUK DISPLAY STATISTIK
   const formatBytes = (bytes: number, decimals = 1): string => {
@@ -335,6 +343,37 @@ export default function StepDataPenyewa({ onSuccess }: Step1Props) {
               <Mail className="h-3.5 w-3.5 text-brand-accent" /> Alamat Email
             </label>
             <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="taufik@gmail.com" className="w-full bg-zinc-50/50 text-zinc-900 font-semibold border border-zinc-200/80 p-4 rounded-2xl text-sm transition-all focus:outline-none focus:border-brand-dark focus:bg-white focus:ring-4 focus:ring-brand-dark/5 placeholder:text-zinc-400 placeholder:font-normal shadow-sm" />
+            
+            {/* 💡 Autocomplete Domain Chips saat mengetik @ */}
+            {email.includes('@') && getEmailDomainSuggestions(email).length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Pilih cepat:</span>
+                {getEmailDomainSuggestions(email).map((sugg) => (
+                  <button
+                    key={sugg}
+                    type="button"
+                    onClick={() => setEmail(sugg)}
+                    className="text-[11px] font-bold bg-white hover:bg-brand-dark hover:text-white text-zinc-600 px-2.5 py-1 rounded-xl border border-zinc-200 shadow-sm transition-all cursor-pointer active:scale-95"
+                  >
+                    @{sugg.split('@')[1]}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* 💡 Typo Suggestion Helper */}
+            {suggestEmailCorrection(email) && (
+              <div className="flex items-center justify-between text-xs bg-amber-50 border border-amber-200/70 text-amber-800 px-3.5 py-2.5 rounded-2xl shadow-sm animate-fadeIn">
+                <span>Maksud Anda <strong>{suggestEmailCorrection(email)}</strong>?</span>
+                <button
+                  type="button"
+                  onClick={() => setEmail(suggestEmailCorrection(email)!)}
+                  className="text-amber-900 font-black underline cursor-pointer hover:text-amber-950 text-[11px] uppercase tracking-wide bg-amber-100/80 hover:bg-amber-200/80 px-2.5 py-1 rounded-lg transition-colors"
+                >
+                  Gunakan Ini
+                </button>
+              </div>
+            )}
           </div>
         </div>
 

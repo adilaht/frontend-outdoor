@@ -2,12 +2,15 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { CreditCard, Wallet, Receipt, ShieldCheck, ExternalLink, Timer, AlertCircle } from 'lucide-react';
+import { CreditCard, Wallet, Receipt, ShieldCheck, ExternalLink, Timer, AlertCircle, Mail, Ban } from 'lucide-react';
+import ConfirmModal from '@/src/components/common/ConfirmModal';
+import { cancelBooking } from '@/src/services/bookingService';
 
 interface Step3Props {
   snapToken: string | null;
-  totalHarga: number; // 🌟 Daftarkan totalHarga di interface props
-  onBack: () => void;
+  totalHarga: number;
+  kodeBooking?: string;
+  userEmail?: string;
 }
 
 declare global {
@@ -19,10 +22,13 @@ declare global {
   }
 }
 
-export default function StepPayment({ snapToken, totalHarga, onBack }: Step3Props) {
+export default function StepPayment({ snapToken, totalHarga, kodeBooking, userEmail }: Step3Props) {
   const router = useRouter();
   const [isProcessing, setIsProcessing] = React.useState(false);
   const [timeLeft, setTimeLeft] = React.useState<number>(15 * 60); // 15 Menit dalam detik
+  const [isCancelModalOpen, setIsCancelModalOpen] = React.useState(false);
+  const [isCancelling, setIsCancelling] = React.useState(false);
+  const [cancelError, setCancelError] = React.useState('');
 
   // Dummy nominal contoh, sesuaikan/lempar via props jika ada data aslinya (misal: totalHarga)
   // const totalHarga = 185000; 
@@ -41,6 +47,36 @@ export default function StepPayment({ snapToken, totalHarga, onBack }: Step3Prop
 
     return () => clearInterval(timer);
   }, [timeLeft, router]);
+
+  // 🛡️ Proteksi beforeunload saat halaman pembayaran masih aktif
+  React.useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
+  // 🚫 Eksekusi Pembatalan Booking Manual oleh User
+  const handleConfirmCancel = async () => {
+    if (!kodeBooking) {
+      router.push('/cart');
+      return;
+    }
+
+    setIsCancelling(true);
+    setCancelError('');
+    try {
+      await cancelBooking(kodeBooking);
+      router.push('/cart');
+    } catch (err: any) {
+      console.error("Gagal membatalkan pesanan:", err);
+      setCancelError(err?.message || "Gagal membatalkan pesanan.");
+      setIsCancelling(false);
+    }
+  };
 
   // Format ke MM:SS
   const formatTime = (seconds: number) => {
@@ -153,6 +189,21 @@ export default function StepPayment({ snapToken, totalHarga, onBack }: Step3Prop
             </p>
           </div>
 
+          {/* Info Email & Kode Booking */}
+          <div className="bg-white/90 border border-zinc-200/80 p-3.5 rounded-xl flex items-start gap-2.5 text-left text-xs">
+            <Mail className="h-4 w-4 text-brand-accent flex-shrink-0 mt-0.5" />
+            <p className="text-[11px] text-zinc-500 leading-relaxed font-medium">
+              Instruksi dan link pembayaran juga dikirim ke{' '}
+              <strong className="text-zinc-800">{userEmail || 'email Anda'}</strong>.
+              {kodeBooking && (
+                <>
+                  {' '}Kode booking:{' '}
+                  <span className="font-mono font-bold text-brand-dark">#{kodeBooking}</span>
+                </>
+              )}
+            </p>
+          </div>
+
           {/* Button Tembak Midtrans */}
           <button
             type="button"
@@ -174,19 +225,34 @@ export default function StepPayment({ snapToken, totalHarga, onBack }: Step3Prop
           </button>
         </div>
 
-        {/* Kembali opsi */}
-        <div className="text-center pt-2">
+        {/* Aksi Pembatalan Eksplisit */}
+        <div className="text-center pt-2 space-y-2">
+          {cancelError && (
+            <p className="text-xs text-red-500 font-semibold">{cancelError}</p>
+          )}
           <button
             type="button"
-            disabled={isProcessing}
-            onClick={onBack}
-            className="text-xs font-bold text-zinc-400 hover:text-brand-dark transition-colors uppercase tracking-widest underline underline-offset-4 cursor-pointer disabled:opacity-30"
+            disabled={isProcessing || isCancelling}
+            onClick={() => setIsCancelModalOpen(true)}
+            className="text-xs font-bold text-zinc-400 hover:text-red-500 transition-colors uppercase tracking-widest cursor-pointer disabled:opacity-30 inline-flex items-center gap-1.5"
           >
-            ← KEMBALI KE DATA BOOKING
+            Batalkan Pesanan Ini
           </button>
         </div>
 
       </div>
+
+      {/* 🛡️ Modal Konfirmasi Batalkan Pesanan */}
+      <ConfirmModal
+        isOpen={isCancelModalOpen}
+        title="Batalkan Pesanan Ini?"
+        message="Pesanan Anda akan dibatalkan, tagihan akan dianulir, dan barang yang sedang di-hold akan dilepaskan kembali. Anda akan diarahkan ke keranjang belanja."
+        confirmText={isCancelling ? "Membatalkan..." : "Ya, Batalkan"}
+        cancelText="Lanjut Bayar"
+        type="danger"
+        onConfirm={handleConfirmCancel}
+        onCancel={() => setIsCancelModalOpen(false)}
+      />
     </div>
   );
 }

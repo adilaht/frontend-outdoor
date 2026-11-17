@@ -64,3 +64,11 @@ body::after,
 ::backdrop {
   pointer-events: none !important;
 }
+
+/* ─── SCALING PROPORSI LAYAR DESKTOP / LAPTOP (COMPACT 90%) ─── */
+/* Menjadikan tampilan laptop & monitor desktop lebih ramping, rapi, dan proporsional tanpa merusak tampilan mobile */
+@media (min-width: 768px) {
+  html {
+    font-size: 90%;
+  }
+}

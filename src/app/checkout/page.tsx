@@ -10,6 +10,7 @@ import StepPayment from '@/src/components/checkout/StepPayment';
 export default function CheckoutPage() {
   const [currentStep, setCurrentStep] = React.useState<1 | 2 | 3>(1);
   const [bookingId, setBookingId] = React.useState<string | null>(null);
+  const [kodeBooking, setKodeBooking] = React.useState<string>("");
   const [userEmail, setUserEmail] = React.useState<string>("");
   const [snapToken, setSnapToken] = React.useState<string | null>(null);
   const [totalPrice, setTotalPrice] = React.useState<number>(0); // 🌟 1. Tambah state penampung harga
@@ -96,24 +97,30 @@ export default function CheckoutPage() {
           {/* 🌟 RENDER FORM STEP (Wrapper Premium) */}
           <div className="relative">
             <div className="absolute -inset-1 bg-gradient-to-b from-zinc-200/50 to-transparent blur-2xl opacity-50 -z-10 rounded-[3rem]" />
-            {currentStep === 1 && (
+            {/* 🌟 STEP 1: Tetap di-mount agar input form & berkas foto KTP tidak tereset saat klik KEMBALI */}
+            <div className={currentStep === 1 ? 'block' : 'hidden'}>
               <StepDataPenyewa 
+                syncedEmail={userEmail}
                 onSuccess={(id_booking, email) => {
                   setBookingId(id_booking);
                   setUserEmail(email);
                   setCurrentStep(2);
                 }} 
               />
-            )}
+            </div>
 
             {currentStep === 2 && (
               <div className="animate-fadeInUp">
                 <StepOTP 
                   email={userEmail}
                   bookingId={bookingId}
-                  onSuccess={(tokenMidtrans, hargaFinal) => {
+                  onEmailUpdated={(newEmail) => {
+                    setUserEmail(newEmail);
+                  }}
+                  onSuccess={(tokenMidtrans, hargaFinal, kode_booking) => {
                     setSnapToken(tokenMidtrans);
                     setTotalPrice(hargaFinal); 
+                    if (kode_booking) setKodeBooking(kode_booking);
                     setCurrentStep(3); 
                   }}
                   onBack={() => setCurrentStep(1)}
@@ -126,7 +133,8 @@ export default function CheckoutPage() {
                 <StepPayment 
                   snapToken={snapToken}
                   totalHarga={totalPrice}              
-                  onBack={() => setCurrentStep(2)}
+                  kodeBooking={kodeBooking}
+                  userEmail={userEmail}
                 />            
               </div>
             )}

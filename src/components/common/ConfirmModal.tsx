@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, X, Info, AlertCircle, Trash2 } from 'lucide-react';
 
 interface ConfirmModalProps {
@@ -27,6 +28,11 @@ export default function ConfirmModal({
   hideCancel = false
 }: ConfirmModalProps) {
   const [render, setRender] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Smooth unmount effect
   useEffect(() => {
@@ -37,15 +43,15 @@ export default function ConfirmModal({
     }
   }, [isOpen]);
 
-  if (!render) return null;
+  if (!render || !mounted) return null;
 
   const IconComponent = type === 'danger' ? Trash2 : type === 'warning' ? AlertTriangle : Info;
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
-      {/* Backdrop */}
+  const modalContent = (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+      {/* Backdrop Full Screen */}
       <div 
-        className={`absolute inset-0 bg-zinc-900/60 backdrop-blur-md transition-opacity duration-200 ${isOpen ? 'opacity-100' : 'opacity-0'}`}
+        className={`fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-200 ${isOpen ? 'opacity-100' : 'opacity-0'}`}
         onClick={onCancel}
       />
       
@@ -92,4 +98,6 @@ export default function ConfirmModal({
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 }

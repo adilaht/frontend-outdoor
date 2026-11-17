@@ -36,3 +36,19 @@ export async function resendOTP(email: string): Promise<any> {
     throw error?.response?.data || new Error("Terjadi kesalahan sistem");
   }
 }
+
+export async function changeEmailOTP(newEmail: string): Promise<any> {
+  try {
+    const response = await apiInstance.post(
+      '/api/booking/change-email',
+      { new_email: newEmail },
+      {
+        headers: getSessionHeader(),
+      }
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error("Gagal mengubah email verifikasi OTP:", error);
+    throw error?.response?.data || new Error("Terjadi kesalahan sistem");
+  }
+}
